@@ -6,7 +6,9 @@ import com.example.project.entity.Role;
 import com.example.project.entity.User;
 import com.example.project.repository.RoleRepository;
 import com.example.project.repository.UserRepository;
+import com.example.project.security.AppUserPrincipal;
 import com.example.project.security.JwtService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -41,55 +43,15 @@ public class AuthController {
     this.encoder = encoder;
   }
 
-  // -------- REGISTER --------
-  @PostMapping("/register")
-  public ResponseEntity<?> register(@RequestBody RegisterRequest req) {
-    if (!StringUtils.hasText(req.getUsername()) ||
-        !StringUtils.hasText(req.getEmail()) ||
-        !StringUtils.hasText(req.getPassword()) ||
-        !StringUtils.hasText(req.getRole())) {
-      return ResponseEntity.badRequest().body(Map.of("error", "username, email, password, role are required"));
-    }
-
-    if (users.existsByUsername(req.getUsername())) {
-      return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "username already used"));
-    }
-    if (users.existsByEmail(req.getEmail())) {
-      return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "email already used"));
-    }
-
-    Role role = roles.findByName(req.getRole().toUpperCase())
-        .orElseGet(() -> roles.save(new Role(null, req.getRole().toUpperCase())));
-
-    User u = new User();
-    u.setUsername(req.getUsername().trim());
-    u.setEmail(req.getEmail().trim());
-    u.setPasswordHash(encoder.encode(req.getPassword()));
-    u.setRole(role);
-    users.save(u);
-
-    String token = jwt.generateToken(u);
-    return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-        "token", token,
-        "username", u.getUsername(),
-        "role", role.getName()
-    ));
-  }
-
-  // -------- LOGIN --------
+  // ---------- LOGIN ----------
   @PostMapping("/login")
-  public ResponseEntity<?> login(@RequestBody LoginRequest req) {
-    if (!StringUtils.hasText(req.getUsernameOrEmail()) || !StringUtils.hasText(req.getPassword())) {
-      return ResponseEntity.badRequest().body(Map.of("error", "usernameOrEmail and password are required"));
-    }
-
-    // DaoAuthenticationProvider expects a username.
+  public ResponseEntity<?> login(@Valid @RequestBody LoginRequest req) {
     String id = req.getUsernameOrEmail().trim();
     String principal = id;
 
-    // If an email was sent, resolve it to the username first
+    // if the user typed an email, resolve to username for DaoAuthenticationProvider
     if (id.contains("@")) {
-      principal = users.findByEmail(id).map(User::getUsername).orElse(null);
+      principal = users.findByEmail(id.toLowerCase()).map(User::getUsername).orElse(null);
       if (!StringUtils.hasText(principal)) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid credentials"));
       }
@@ -99,14 +61,59 @@ public class AuthController {
         new UsernamePasswordAuthenticationToken(principal, req.getPassword())
     );
 
-    // Load the entity to build the JWT
-    User u = users.findByUsername(auth.getName()).orElseThrow();
-    String token = jwt.generateToken(u);
+    AppUserPrincipal p = (AppUserPrincipal) auth.getPrincipal();
+    String token = jwt.generateToken(p.getUser());
 
     return ResponseEntity.ok(Map.of(
         "token", token,
-        "username", u.getUsername(),
-        "role", u.getRole().getName()
+        "username", p.getUsername(),
+        "role", p.getUser().getRole().getName()
+    ));
+  }
+
+  // ---------- REGISTER ----------
+  @PostMapping("/register")
+  public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
+
+    String username = req.getUsername().trim();
+    String email = req.getEmail().trim().toLowerCase();
+
+    if (users.existsByUsername(username)) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("error", "Username already taken"));
+    }
+    if (users.existsByEmail(email)) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("error", "Email already registered"));
+    }
+
+    // Extra password hardening: don't allow password to contain username or email local-part
+    String pw = req.getPassword();
+    String local = email.substring(0, email.indexOf('@'));
+    String pwLower = pw.toLowerCase();
+    if (pwLower.contains(username.toLowerCase()) || pwLower.contains(local.toLowerCase())) {
+      return ResponseEntity.badRequest().body(
+          Map.of("error", "Password must not contain your username or email local-part"));
+    }
+
+    Role role = roles.findByName(req.getRole().toUpperCase())
+        .orElseThrow(() -> new IllegalArgumentException("Invalid role: " + req.getRole()));
+
+    User u = new User();
+    u.setUsername(username);
+    u.setEmail(email);
+    u.setPasswordHash(encoder.encode(pw));
+    u.setRole(role);
+
+    User saved = users.save(u);
+
+    String token = jwt.generateToken(saved);
+    return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+        "id", saved.getId(),
+        "username", saved.getUsername(),
+        "email", saved.getEmail(),
+        "role", saved.getRole().getName(),
+        "token", token
     ));
   }
 }
