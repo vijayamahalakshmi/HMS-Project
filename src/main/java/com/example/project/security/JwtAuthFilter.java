@@ -4,7 +4,10 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
+import org.springframework.context.annotation.Bean;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -29,7 +32,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
     String path = request.getServletPath();
-    return path.startsWith("/auth/") || path.startsWith("/h2-console");
+    return path.equals("/auth/login") || path.equals("/auth/register") 
+    || path.startsWith("/h2-console")
+    || path.startsWith("/swagger-ui")
+    || path.startsWith("/v3/api-docs")
+    || path.startsWith("/swagger-resources")
+    || path.startsWith("/webjars");
   }
 
   @Override
@@ -66,4 +74,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
       response.getWriter().write("{\"error\":\"invalid_or_expired_token\"}");
     }
   }
+
+  @Bean
+public WebSecurityCustomizer webSecurityCustomizer() {
+    return (web) -> web.ignoring().requestMatchers(
+        "/swagger-ui/**",
+        "/v3/api-docs/**",
+        "/swagger-resources/**",
+        "/webjars/**"
+    );
+}
 }

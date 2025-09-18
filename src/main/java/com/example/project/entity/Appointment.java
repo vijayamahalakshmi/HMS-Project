@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 public class Appointment {
   @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "ID")
-  private Integer id;
+  private int id;
 
   @ManyToOne(optional = false) @JoinColumn(name = "DOCTOR_ID")
   private Doctor doctor;
@@ -27,6 +27,8 @@ public class Appointment {
   @Column(name = "STATUS", nullable = false)
   private String status; // PENDING/BOOKED/CANCELLED/CONFIRMED/NO_SHOW
 
-  @Column(name = "CREATED_AT", nullable = false)
+  @Column(name = "CREATED_AT", nullable = false,updatable = false,insertable = false)
   private LocalDateTime createdAt;
+
+   
 }

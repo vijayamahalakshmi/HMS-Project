@@ -6,7 +6,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,6 +16,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
   private final JwtAuthFilter jwtFilter;
@@ -27,7 +30,9 @@ public class SecurityConfig {
       .headers(h -> h.frameOptions(f -> f.sameOrigin())) // H2 console
       .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
       .authorizeHttpRequests(auth -> auth
-          .requestMatchers("/auth/**", "/h2-console/**").permitAll()
+          .requestMatchers("/auth/login", "/auth/register").permitAll()
+          .requestMatchers("/auth/**", "/h2-console/**","/swagger-ui/**","/v3/api-docs/**","/swagger-resources/**","/webjars/**","/v3/api-docs").permitAll()
+          .requestMatchers("/auth/admin/register").hasRole("ADMIN")
           .anyRequest().authenticated()
       )
       .authenticationProvider(daoProvider)
@@ -48,4 +53,6 @@ public class SecurityConfig {
   AuthenticationManager authenticationManager(AuthenticationConfiguration cfg) throws Exception {
     return cfg.getAuthenticationManager();
   }
+
+  
 }

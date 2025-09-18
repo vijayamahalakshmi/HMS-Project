@@ -1,5 +1,7 @@
 package com.example.project.entity;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -8,7 +10,7 @@ import lombok.*;
 public class Patient {
   @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "ID")
-  private Integer id;
+  private int id;
 
   @OneToOne
   @JoinColumn(name = "USER_ID", unique = true)
@@ -24,7 +26,8 @@ public class Patient {
   private String phone;
 
   @Column(name = "DOB")
-  private java.sql.Date dob;
+  @JsonFormat(pattern = "yyyy-MM-dd")
+  private java.time.LocalDate dob;
 
   @Column(name = "ADDRESS")
   private String address;
