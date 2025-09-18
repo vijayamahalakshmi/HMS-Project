@@ -5,8 +5,11 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.CreationTimestamp;
+
 @Entity @Table(name = "PRESCRIPTION")
 @Data @NoArgsConstructor @AllArgsConstructor
+@Builder
 public class Prescription {
   @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "ID")
@@ -22,6 +25,9 @@ public class Prescription {
   @Lob @Column(name = "MEDICINES_TEXT")
   private String medicinesText;
 
-  @Column(name = "CREATED_AT", nullable = false)
+  @CreationTimestamp
+  @Column(name = "CREATED_AT", nullable = false,updatable = false)
   private LocalDateTime createdAt;
+
+
 }

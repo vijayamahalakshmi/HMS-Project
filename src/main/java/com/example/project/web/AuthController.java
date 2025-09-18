@@ -11,6 +11,7 @@ import com.example.project.security.JwtService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -72,7 +73,8 @@ public class AuthController {
   }
 
   // ---------- REGISTER ----------
-  @PostMapping("/register")
+  /*@PostMapping("/register")
+  //@PreAuthorize("hasRole('PATIENT') or hasRole('ADMIN')")
   public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
 
     String username = req.getUsername().trim();
@@ -115,5 +117,97 @@ public class AuthController {
         "role", saved.getRole().getName(),
         "token", token
     ));
-  }
+  }*/
+
+ @PostMapping("/register")
+public ResponseEntity<?> registerPatient(@Valid @RequestBody RegisterRequest req) {
+
+    String username = req.getUsername().trim();
+    String email = req.getEmail().trim().toLowerCase();
+
+    if (users.existsByUsername(username)) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(Map.of("error", "Username already taken"));
+    }
+    if (users.existsByEmail(email)) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(Map.of("error", "Email already registered"));
+    }
+
+    // password hardening check
+    String pw = req.getPassword();
+    String local = email.substring(0, email.indexOf('@'));
+    String pwLower = pw.toLowerCase();
+    if (pwLower.contains(username.toLowerCase()) || pwLower.contains(local.toLowerCase())) {
+        return ResponseEntity.badRequest().body(
+            Map.of("error", "Password must not contain your username or email local-part"));
+    }
+
+    Role patientRole = roles.findByName("PATIENT")
+        .orElseThrow(() -> new IllegalArgumentException("Role PATIENT not found"));
+
+    User u = new User();
+    u.setUsername(username);
+    u.setEmail(email);
+    u.setPasswordHash(encoder.encode(pw));
+    u.setRole(patientRole);
+
+    User saved = users.save(u);
+    String token = jwt.generateToken(saved);
+
+    return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+        "id", saved.getId(),
+        "username", saved.getUsername(),
+        "email", saved.getEmail(),
+        "role", saved.getRole().getName(),
+        "token", token
+    ));
+}
+@PostMapping("/admin/register")
+@PreAuthorize("hasRole('ADMIN')")
+public ResponseEntity<?> registerByAdmin(@Valid @RequestBody RegisterRequest req) {
+
+    String username = req.getUsername().trim();
+    String email = req.getEmail().trim().toLowerCase();
+
+    if (users.existsByUsername(username)) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(Map.of("error", "Username already taken"));
+    }
+    if (users.existsByEmail(email)) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(Map.of("error", "Email already registered"));
+    }
+
+    String pw = req.getPassword();
+    String local = email.substring(0, email.indexOf('@'));
+    String pwLower = pw.toLowerCase();
+    if (pwLower.contains(username.toLowerCase()) || pwLower.contains(local.toLowerCase())) {
+        return ResponseEntity.badRequest().body(
+            Map.of("error", "Password must not contain your username or email local-part"));
+    }
+
+    String requestedRole = req.getRole().toUpperCase();
+    if (!requestedRole.equals("ADMIN") && !requestedRole.equals("DOCTOR") && !requestedRole.equals("PATIENT")) {
+        return ResponseEntity.badRequest().body(Map.of("error", "Invalid role: " + requestedRole));
+    }
+
+    Role role = roles.findByName(requestedRole)
+        .orElseThrow(() -> new IllegalArgumentException("Role not found: " + requestedRole));
+
+    User u = new User();
+    u.setUsername(username);
+    u.setEmail(email);
+    u.setPasswordHash(encoder.encode(pw));
+    u.setRole(role);
+
+    User saved = users.save(u);
+
+    return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+        "id", saved.getId(),
+        "username", saved.getUsername(),
+        "email", saved.getEmail(),
+        "role", saved.getRole().getName()
+    ));
+}
 }
