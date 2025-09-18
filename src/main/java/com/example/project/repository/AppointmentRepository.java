@@ -6,6 +6,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+// ✅ add these:
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -14,11 +18,14 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Intege
            "p.id, p.fullName, p.email, p.phone) " +
            "FROM Appointment a JOIN a.patient p " +
            "WHERE a.doctor.id = :doctorId")
-    List<AppointmentSummaryDTO> findAppointmentsByDoctorId(@Param("doctorId") int doctorId);
+  List<AppointmentSummaryDTO> findAppointmentsByDoctorId(@Param("doctorId") int doctorId);
 
   List<Appointment> findByDoctorId(Integer doctorId);
   List<Appointment> findByPatientId(Integer patientId);
 
   List<Appointment> findByDoctorIdAndPatientId(int doctorId, int patientId);
   List<Appointment> findByDoctorIdAndStartTimeBetween(Integer doctorId, LocalDateTime start, LocalDateTime end);
+
+  // ✅ newest line
+  Page<Appointment> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }

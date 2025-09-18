@@ -2,6 +2,8 @@ package com.example.project.services;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import com.example.project.dto.AppointmentDTO;
 import com.example.project.dto.AppointmentSummaryDTO;
@@ -17,10 +19,11 @@ import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors; // ✅ add this
 
 @Service
 @RequiredArgsConstructor
-public class AppointmentService implements AppointmentRepo{
+public class AppointmentService implements AppointmentRepo {
 
     @Autowired
     private AppointmentRepository appointmentRepository;
@@ -35,6 +38,7 @@ public class AppointmentService implements AppointmentRepo{
         return appointmentRepository.findAppointmentsByDoctorId(doctorId);
     }
 
+    @Override
     public AppointmentDTO bookAppointment(int doctorId, int patientId, LocalDateTime start, LocalDateTime end) {
         Doctor doctor = doctorRepository.findById(doctorId)
                 .orElseThrow(() -> new RuntimeException("Doctor not found"));
@@ -42,7 +46,6 @@ public class AppointmentService implements AppointmentRepo{
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new RuntimeException("Patient not found"));
 
-        // Check if doctor is already booked in this time range
         List<Appointment> existing = appointmentRepository
                 .findByDoctorIdAndStartTimeBetween(doctorId, start, end);
 
@@ -57,40 +60,29 @@ public class AppointmentService implements AppointmentRepo{
         appointment.setEndTime(end);
         appointment.setStatus("PENDING");
 
-        System.out.println(appointment.getDoctor()+" "+appointment.getPatient()+" "+appointment.getStartTime()+" "+appointment.getEndTime()+" "+appointment.getStatus());
-        
         Appointment saved = appointmentRepository.save(appointment);
-          
-        System.out.println(saved);
-         
-
-         /*AppointmentDTO appointmentDTO=new AppointmentDTO(
-            saved.getId(),saved.getStartTime(),saved.getEndTime(),saved.getStatus(),saved.getDoctor().getName(),saved.getPatient().getFullName());
-         */
-
         return new AppointmentDTO(saved);
-        
     }
 
-     public AppointmentDTO updateAppointment(int appointmentId, LocalDateTime newStart, LocalDateTime newEnd, String newStatus) {
+    @Override
+    public AppointmentDTO updateAppointment(int appointmentId, LocalDateTime newStart, LocalDateTime newEnd, String newStatus) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
 
-       if (newStart != null && newEnd != null) {
-        // Find any overlapping appointments for this doctor (excluding the current appointment)
-        List<Appointment> conflicts = appointmentRepository
-                .findByDoctorIdAndStartTimeBetween(appointment.getDoctor().getId(), newStart, newEnd)
-                .stream()
-                .filter(a -> a.getId() != appointmentId) // exclude current appointment
-                .toList();
+        if (newStart != null && newEnd != null) {
+            List<Appointment> conflicts = appointmentRepository
+                    .findByDoctorIdAndStartTimeBetween(appointment.getDoctor().getId(), newStart, newEnd)
+                    .stream()
+                    .filter(a -> a.getId() != appointmentId)
+                    .collect(Collectors.toList()); // ✅ Java 8/11
 
-        if (!conflicts.isEmpty()) {
-            throw new RuntimeException("Doctor is already booked for this time slot");
+            if (!conflicts.isEmpty()) {
+                throw new RuntimeException("Doctor is already booked for this time slot");
+            }
+
+            appointment.setStartTime(newStart);
+            appointment.setEndTime(newEnd);
         }
-
-        appointment.setStartTime(newStart);
-        appointment.setEndTime(newEnd);
-      }
         if (newStatus != null) {
             appointment.setStatus(newStatus);
         }
@@ -99,13 +91,22 @@ public class AppointmentService implements AppointmentRepo{
         return new AppointmentDTO(updated);
     }
 
-     public void cancelAppointment(int appointmentId) {
+    @Override
+    public void cancelAppointment(int appointmentId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
         appointment.setStatus("CANCELLED");
         appointmentRepository.save(appointment);
     }
 
-    
+    // ✅ Latest appointments method (not part of the interface)
+    public List<AppointmentDTO> getLatestAppointments(int size) {
+        if (size <= 0) size = 10;
+        PageRequest pageable = PageRequest.of(0, size, Sort.by(Sort.Direction.DESC, "createdAt")); // ✅ no 'var'
+        return appointmentRepository.findAllByOrderByCreatedAtDesc(pageable)
+                .getContent()
+                .stream()
+                .map(AppointmentDTO::new)
+                .collect(Collectors.toList()); // ✅ Java 8/11
+    }
 }
-    
