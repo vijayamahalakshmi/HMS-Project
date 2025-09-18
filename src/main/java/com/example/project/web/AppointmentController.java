@@ -62,6 +62,13 @@ public class AppointmentController {
     public void cancelAppointment(@PathVariable int id) {
         appointmentService.cancelAppointment(id);
     }
+  @GetMapping("/latest")
+@PreAuthorize("hasRole('ADMIN') or hasRole('DOCTOR') or hasRole('PATIENT')")
+public ResponseEntity<List<AppointmentDTO>> latestAppointments(
+        @RequestParam(defaultValue = "10") int size) {
+    List<AppointmentDTO> results = appointmentService.getLatestAppointments(size);
+    return ResponseEntity.ok(results);
+}
 
 
 }
